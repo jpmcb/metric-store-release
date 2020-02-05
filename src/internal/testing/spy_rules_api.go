@@ -151,8 +151,11 @@ func (a *RulesApiSpy) Start() error {
 
 	mux := mux.NewRouter()
 	mux.HandleFunc("/rules/manager", a.createManager)
+	mux.HandleFunc("/private/rules/manager", a.createManager)
 	mux.HandleFunc("/rules/manager/{manager_id}/group", a.upsertGroup)
+	mux.HandleFunc("/private/rules/manager/{manager_id}/group", a.upsertGroup)
 	mux.HandleFunc("/rules/manager/{manager_id}", a.deleteManager)
+	mux.HandleFunc("/private/rules/manager/{manager_id}", a.deleteManager)
 	a.server = &http.Server{Handler: mux, Addr: secureConnection.Addr().String()}
 
 	go a.server.Serve(secureConnection)

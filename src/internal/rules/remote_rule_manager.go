@@ -41,7 +41,17 @@ func NewRemoteRuleManager(addr string, tlsConfig *tls.Config) *RemoteRuleManager
 
 func (r *RemoteRuleManager) CreateManager(managerId, alertmanagerAddr string) error {
 	_, err := r.rulesClient.CreateManager(managerId, alertmanagerAddr)
-	return err
+
+	if err != nil {
+		switch err.(type) {
+		case *rulesclient.ErrorNotCreated:
+			return ManagerExistsError
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *RemoteRuleManager) DeleteManager(managerId string) error {

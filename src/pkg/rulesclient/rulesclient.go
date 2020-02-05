@@ -90,7 +90,8 @@ func (c *RulesClient) destroy(path string) (resp *http.Response, err error) {
 }
 
 type ErrorNotCreated struct {
-	Title string
+	Status int
+	Title  string
 }
 
 func (e *ErrorNotCreated) Error() string {

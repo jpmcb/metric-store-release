@@ -1,6 +1,7 @@
 package metricstore_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -17,12 +18,12 @@ import (
 	"github.com/cloudfoundry/metric-store-release/src/internal/metrics"
 	"github.com/cloudfoundry/metric-store-release/src/internal/metricstore"
 	"github.com/cloudfoundry/metric-store-release/src/internal/testing"
+	sharedtls "github.com/cloudfoundry/metric-store-release/src/internal/tls"
 	"github.com/cloudfoundry/metric-store-release/src/internal/version"
 	"github.com/cloudfoundry/metric-store-release/src/pkg/ingressclient"
 	"github.com/cloudfoundry/metric-store-release/src/pkg/persistence/transform"
 	"github.com/cloudfoundry/metric-store-release/src/pkg/rpc"
 	"github.com/cloudfoundry/metric-store-release/src/pkg/rulesclient"
-	sharedtls "github.com/cloudfoundry/metric-store-release/src/internal/tls"
 	prom_api_client "github.com/prometheus/client_golang/api"
 	prom_versioned_api_client "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -1368,5 +1369,116 @@ groups:
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(totalRuleCount, 10*time.Second).Should(Equal(1))
+	})
+
+	FIt("Adds rules via API and persists rules across restarts", func() {
+		tc, cleanup := setup(2)
+		defer cleanup()
+
+		waitForApi(tc)
+
+		// localRulesClient := rulesclient.NewRulesClient(tc.addrs[0], tc.tlsConfig)
+		// peerRulesClient := rulesclient.NewRulesClient(tc.addrs[1], tc.tlsConfig)
+
+		c := &http.Client{
+			Timeout:   5 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: tc.tlsConfig},
+		}
+
+		payload := []byte(`
+{
+  "data": {
+    "id": "` + MAGIC_MANAGER_NAME + `"
+  }
+}`)
+		resp, err := c.Post(
+			"https://"+tc.addrs[0]+"/rules/manager",
+			"application/json",
+			bytes.NewReader(payload),
+		)
+		fmt.Println("DEBUG: local 1 resp:", resp, ", err:", err)
+
+		resp, err = c.Post(
+			"https://"+tc.addrs[0]+"/rules/manager",
+			"application/json",
+			bytes.NewReader(payload),
+		)
+		fmt.Println("DEBUG: local 2 resp:", resp, ", err:", err)
+
+		resp, err = c.Post(
+			"https://"+tc.addrs[1]+"/rules/manager",
+			"application/json",
+			bytes.NewReader(payload),
+		)
+		fmt.Println("DEBUG: peer resp:", resp, ", err:", err)
+
+		// _, err := localRulesClient.CreateManager(MAGIC_MANAGER_NAME, "")
+		// Expect(err).ToNot(HaveOccurred())
+
+		// _, err = localRulesClient.CreateManager(MAGIC_MANAGER_NAME, "")
+		// Expect(err).To(HaveOccurred())
+		// fmt.Println("DEBUG: err local:", err)
+
+		// _, err = peerRulesClient.CreateManager(MAGIC_MANAGER_NAME, "")
+		// fmt.Println("DEBUG: err peer:", err)
+		// Expect(err).To(HaveOccurred())
+
+		Expect(1).To(Equal(2))
+		// Expect(resp.StatusCode).To(Equal(409))
+
+		// _, err = peerRulesClient.UpsertRuleGroup(
+		// 	MAGIC_MANAGER_NAME,
+		// 	rulesclient.RuleGroup{
+		// 		Name:     "test-group",
+		// 		Interval: rulesclient.Duration(2 * time.Minute),
+		// 		Rules: []rulesclient.Rule{
+		// 			{
+		// 				Record: "sumCpuTotal",
+		// 				Expr:   "sum(cpu)",
+		// 			},
+		// 		},
+		// 	},
+		// )
+		// Expect(err).ToNot(HaveOccurred())
+
+		// _, err = localRulesClient.CreateManager(MAGIC_MANAGER_PEER_NAME, "")
+		// Expect(err).ToNot(HaveOccurred())
+
+		// _, err = peerRulesClient.UpsertRuleGroup(
+		// 	MAGIC_MANAGER_PEER_NAME,
+		// 	rulesclient.RuleGroup{
+		// 		Name: "test-group-peer",
+		// 		Rules: []rulesclient.Rule{
+		// 			{
+		// 				Record: "sumMemoryTotal",
+		// 				Expr:   "sum(memory)",
+		// 			},
+		// 		},
+		// 	},
+		// )
+		// Expect(err).ToNot(HaveOccurred())
+
+		// totalRuleCount := func() int {
+		// 	localRules, err := tc.localEgressClient.Rules(context.Background())
+		// 	Expect(err).ToNot(HaveOccurred())
+
+		// 	peerRules, err := tc.peerEgressClient.Rules(context.Background())
+		// 	Expect(err).ToNot(HaveOccurred())
+
+		// 	return len(localRules.Groups) + len(peerRules.Groups)
+		// }
+		// Eventually(totalRuleCount, 5*time.Second).Should(Equal(2))
+
+		// Eventually(func() error {
+		// 	_, _, err := tc.localEgressClient.LabelValues(context.Background(), model.MetricNameLabel)
+		// 	return err
+		// }, 5).Should(Succeed())
+
+		// Eventually(totalRuleCount, 5*time.Second).Should(Equal(2))
+
+		// err = localRulesClient.DeleteManager(MAGIC_MANAGER_PEER_NAME)
+		// Expect(err).ToNot(HaveOccurred())
+
+		// Eventually(totalRuleCount, 10*time.Second).Should(Equal(1))
 	})
 })
